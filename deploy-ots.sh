@@ -47,7 +47,9 @@ fi
 #----------------Prereqs
 print_color green "Updating apt and installing prerequisites..."
 apt-get update -y
-apt-get install -y wget curl vim gnupg lsb-release ca-certificates ufw
+apt-get install -y wget curl vim gnupg lsb-release ca-certificates ufw nginx
+
+
 
 #----------------Redis
 print_color green "Installing Redis..."
@@ -79,22 +81,28 @@ if ! getent passwd ots >/dev/null; then
 fi
 
 #----------------OTS
-OTS_VERSION="v0.25.0"
+#OTS_VERSION="v0.25.0"
+#OTS_TARBALL="ots_linux_amd64.tar.gz"
+OTS_VERSION="v1.20.1"
+OTS_TARBALL="ots_linux_amd64.tgz"
+OTS_BIN="/opt/ots/ots"
 
 print_color green "Installing OTS (${OTS_VERSION})..."
 mkdir -p /opt/ots
-wget -q "https://github.com/Luzifer/ots/releases/download/${OTS_VERSION}/ots_linux_amd64.tar.gz" \
-  -O /opt/ots/ots_linux_amd64.tar.gz
-tar -xzf /opt/ots/ots_linux_amd64.tar.gz -C /opt/ots
-rm -f /opt/ots/ots_linux_amd64.tar.gz
-chmod +x /opt/ots/ots_linux_amd64
+wget -q "https://github.com/Luzifer/ots/releases/download/${OTS_VERSION}/${OTS_TARBALL}" \
+  -O /opt/ots/${OTS_TARBALL}
+tar -xzf /opt/ots/${OTS_TARBALL} -C /opt/ots
+rm -f /opt/ots/${OTS_TARBALL} 
+chmod +x "${OTS_BIN}"
+
+[[ -x "$OTS_BIN" ]] || { print_color red "OTS binary not found at $OTS_BIN"; exit 1; }
 
 # Ownership for non-root service execution
 chown -R ots:ots /opt/ots
 
 #----------------Systemd Service
 print_color green "Configuring OTS as a systemd service..."
-cat > /etc/systemd/system/ots.service <<'EOF'
+cat > /etc/systemd/system/ots.service <<EOF
 [Unit]
 Description=OTS App
 After=network.target redis-server.service
@@ -105,7 +113,7 @@ Type=simple
 User=ots
 Group=ots
 WorkingDirectory=/opt/ots
-ExecStart=/opt/ots/ots_linux_amd64
+ExecStart=${OTS_BIN}
 Restart=on-failure
 RestartSec=2
 
@@ -133,29 +141,43 @@ systemctl restart ots.service
 check_service_status ots.service
 
 #----------------Nginx
-print_color green "Installing Nginx..."
-apt-get install -y nginx
+print_color green "Configuring Nginx..."
+print_color green "Create a self-signed cert..."
+
+mkdir -p /etc/nginx/certs
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+  -keyout /etc/nginx/certs/ots.key \
+  -out /etc/nginx/certs/ots.crt \
+  -subj "/CN=ots.local"
+chmod 600 /etc/nginx/certs/ots.key
 
 print_color green "Configuring Nginx reverse proxy for OTS..."
 
 rm -f /etc/nginx/sites-enabled/default || true  # Remove pre-existing config to prevent conflicts
 
 cat > /etc/nginx/conf.d/ots_app.conf <<'EOF'
-log_format custom_log '"Request: $request\n Status: $status\n Request_URI: $request_uri\n Host: $host\n Client_IP: $remote_addr\n Proxy_IP(s): $proxy_add_x_forwarded_for\n Proxy_Hostname: $proxy_host\n Real_IP: $http_x_real_ip\n User_Client: $http_user_agent"';
+server {
+  listen 80 default_server;
+  server_name _;
+  return 301 https://$host$request_uri;
+}
 
 server {
-    listen 80 default_server;
-    server_name _;
+  listen 443 ssl http2 default_server;
+  server_name _;
 
-    access_log /var/log/nginx/custom-access-logs.log custom_log;
+  ssl_certificate     /etc/nginx/certs/ots.crt;
+  ssl_certificate_key /etc/nginx/certs/ots.key;
 
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  access_log /var/log/nginx/custom-access-logs.log;
 
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-    }
+  proxy_set_header Host $host;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+  }
 }
 EOF
 
@@ -164,9 +186,9 @@ systemctl enable nginx
 systemctl restart nginx
 check_service_status nginx
 
-#----------------TLS Optional
-# TLS is commented out because this assignment does not have a real DNS name / cert.
-# In a real deployment, use a domain name and Let's Encrypt (certbot) to enable HTTPS.
+#----------------Let’s Encrypt Optional
+# TLS is commented out because this assignment does not have a real DNS name, and uses self-signed cert.
+# In a real deployment, use a domain name and certbot to enable HTTPS.
 : <<'TLS_SETUP'
 
 # apt-get update -y
@@ -188,8 +210,9 @@ TLS_SETUP
 
 #----------------Firewall
 print_color green "Configuring UFW firewall..."
-ufw allow ssh
-ufw allow 'Nginx HTTP'
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
 ufw --force enable
 ufw reload
 check_service_status ufw
@@ -199,4 +222,4 @@ ufw status verbose
 
 #----------------Done
 SERVER_IP="$(hostname -I | awk '{print $1}')"
-print_color green "All set! Visit: http://${SERVER_IP}/"    # (or your DNS name) on port 80
+print_color green "All set! Visit: https://${SERVER_IP}/"    # self-signed cert, browser warning is expected
