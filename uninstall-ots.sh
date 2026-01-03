@@ -39,6 +39,9 @@ rm -f /etc/nginx/conf.d/ots_app.conf
 print_color green "Removing OTS install directory..."
 rm -rf /opt/ots
 
+print_color green "Removing OTS service user..."
+userdel ots
+
 #----------------Verify
 print_color green "Verifying uninstall..."
 

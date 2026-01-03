@@ -234,12 +234,6 @@ sudo apt-get remove -y nginx redis ufw
 sudo apt-get autoremove -y
 ```
 
-Remove the service user (optional):
-
-```bash
-sudo userdel ots
-```
-
 ---
 
 ## Security notes
