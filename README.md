@@ -16,15 +16,18 @@ It also includes an **optional Let’s Encrypt outline** (commented) to show the
 
 ## What is OTS?
 
-This repo deploys **Luzifer’s OTS** project. citeturn0search0turn0search1
+This repo deploys **Luzifer’s OTS** project:
 
-OTS is a **one-time secret sharing** app. You paste a secret, share a generated link, and the recipient can view it **once**. In Luzifer/ots:
+- GitHub: `https://github.com/Luzifer/ots`
 
-- The secret is encrypted in the browser using **AES-256** before upload. citeturn0search0
-- The generated URL contains the secret ID and the password/key; the password is **never sent** to the server. citeturn0search0
-- The secret is deleted on the **first read**. citeturn0search0
+OTS is a **one-time secret sharing** app. You paste a secret, share a generated link, and the recipient can view it **once**.
 
-Typical use: share passwords, API tokens, or recovery codes without leaving the plaintext secret in chat/email history.
+High-level behavior (as designed by the upstream project):
+
+- The secret is encrypted client-side (in the browser) before it is stored server-side.
+- The “one-time” link is intended to be opened once; after the first successful read, the secret is no longer available.
+
+Typical use: share passwords, API tokens, or recovery codes without leaving the plaintext secret sitting in chat/email history.
 
 ---
 
@@ -155,7 +158,7 @@ curl -I  http://127.0.0.1:3000/ | head -n1
 
 ## Optional TLS (Let’s Encrypt / certbot)
 
-The script includes a commented outline for Let’s Encrypt. Use this for a real deployment with a real DNS name.
+The deploy script includes a commented outline for Let’s Encrypt. Use this for a real deployment with a real DNS name.
 
 High-level requirements:
 
@@ -252,4 +255,4 @@ sudo userdel ots
 
 ## Credits
 
-- OTS application by **Luzifer**: `github.com/Luzifer/ots` citeturn0search0
+- OTS application by **Luzifer**: `https://github.com/Luzifer/ots`
