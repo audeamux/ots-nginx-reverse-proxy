@@ -30,7 +30,7 @@ check_service_status() {
   local svc="$1"
   local status
 
-  status="$(systemctl is-active "$svc" 2>/dev/null || true)"
+  status="$(systemctl is-active "$svc" 2> /dev/null || true)"
   if [[ "$status" == "active" ]]; then
     print_color green "$svc service is active"
   else
