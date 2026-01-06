@@ -6,6 +6,7 @@
 # Notes:
 # - Intended for a single-host setup: OTS + Redis on the same machine, Nginx as reverse proxy.
 # - TLS is outlined but commented (no TLS cert / no domain).
+# - Used self-signed cert instead
 
 set -euo pipefail
 
@@ -49,8 +50,6 @@ print_color green "Updating apt and installing prerequisites..."
 apt-get update -y
 apt-get install -y wget curl vim gnupg lsb-release ca-certificates ufw nginx
 
-
-
 #----------------Redis
 print_color green "Installing Redis..."
 curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
@@ -63,7 +62,7 @@ apt-get install -y redis
 print_color green "Configuring Redis..."
 sed -i 's/^supervised .*/supervised systemd/g' /etc/redis/redis.conf
 
-# Safer default: keep Redis local-only
+# Keep Redis local-only
 if grep -qE '^\s*bind\s+' /etc/redis/redis.conf; then
   sed -i 's/^\s*bind\s.*/bind 127.0.0.1 ::1/g' /etc/redis/redis.conf
 else
@@ -81,8 +80,6 @@ if ! getent passwd ots >/dev/null; then
 fi
 
 #----------------OTS
-#OTS_VERSION="v0.25.0"
-#OTS_TARBALL="ots_linux_amd64.tar.gz"
 OTS_VERSION="v1.20.1"
 OTS_TARBALL="ots_linux_amd64.tgz"
 OTS_BIN="/opt/ots/ots"
@@ -142,7 +139,7 @@ check_service_status ots.service
 
 #----------------Nginx
 print_color green "Configuring Nginx..."
-print_color green "Create a self-signed cert..."
+print_color green "Creating a self-signed cert..."
 
 mkdir -p /etc/nginx/certs
 openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
